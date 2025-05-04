@@ -1,0 +1,48 @@
+plugins {
+    id 'java'
+    id 'application'
+    id 'io.ratpack.ratpack-java' version '1.9.0'
+}
+
+group = 'org.example'
+version = '1.0-SNAPSHOT'
+
+sourceSets {
+    main {
+        resources {
+            srcDirs = ['src/main/resources']
+        }
+    }
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    //RATPACK STABLE
+    implementation 'io.ratpack:ratpack-core:1.9.0' //ignore vulnerabilities
+    testImplementation 'io.ratpack:ratpack-test:1.9.0'
+
+    //LOGGING
+    implementation 'org.slf4j:slf4j-api:1.7.36'
+    implementation 'org.slf4j:slf4j-simple:1.7.36'
+
+    //DATABASE
+    implementation platform('io.projectreactor:reactor-bom:2024.0.5')
+    implementation 'io.projectreactor:reactor-core'
+    implementation platform("org.mongodb:mongodb-driver-bom:5.4.0")
+    implementation 'org.mongodb:mongodb-driver-reactivestreams'
+
+    //TEMPLATE
+    testImplementation platform('org.junit:junit-bom:5.10.0')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+}
+
+test {
+    useJUnitPlatform() //Template
+}
+
+application {
+    mainClass = 'app.Main'
+}
