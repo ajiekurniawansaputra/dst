@@ -32,7 +32,7 @@ public class DeviceHandler {
                             stringMap.put("message", "422 Unprocessable Entity : Max 2 Letter (country code) Ex: id, en, fr");
                             ctx.getResponse().status(422);
                             ctx.render(Jackson.json(stringMap));
-                        };
+                        }
 
                         //Business Logic Service
                         DeviceService deviceService = ctx.get(DeviceService.class);

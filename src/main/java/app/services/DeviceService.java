@@ -2,8 +2,12 @@ package app.services;
 
 import com.mongodb.reactivestreams.client.MongoDatabase;
 import com.mongodb.reactivestreams.client.MongoCollection;
+
+import static com.mongodb.client.model.Filters.eq;
 import static com.mongodb.client.model.Projections.fields;
 import static com.mongodb.client.model.Projections.include;
+
+import org.bson.types.ObjectId;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import java.util.HashMap;
@@ -51,5 +55,26 @@ public class DeviceService {
             .collectList()
             .doOnSuccess(list -> System.out.printf("Successfully fetched : "+list.size()))
             .doOnError(e -> System.out.printf("Error fetching data : "+e));
+    }
+
+    public Mono<List<Map<String, Object>>> getAllVendorDevices(String vendorId) {
+        MongoCollection<Document> devices = db.getCollection("Device");
+        ObjectId objectId = new ObjectId(vendorId);
+        return Flux.from(devices.find(eq("vendorId", objectId)).projection(fields(include("_id","brandName","deviceName","description", "configuration", "stats", "createdAt", "updatedAt"))))
+                .map(doc -> {
+                    Map<String, Object> device = new HashMap<>();
+                    device.put("deviceId", doc.getObjectId("_id").toString());
+                    device.put("brandName", doc.getString("brandName"));
+                    device.put("deviceName", doc.getString("deviceName"));
+                    device.put("description", doc.getString("description"));
+                    device.put("configuration", doc.get("configuration", Document.class));
+                    device.put("stats", doc.get("stats", Document.class));
+                    device.put("createdAt", doc.getString("createdAt"));
+                    device.put("updatedAt", doc.getString("updatedAt"));
+                    return device;
+                })
+                .collectList()
+                .doOnSuccess(list -> System.out.printf("Successfully fetched : "+list.size()))
+                .doOnError(e -> System.out.printf("Error fetching data : "+e));
     }
 }

@@ -2,7 +2,7 @@ package app;
 
 import app.config.*;
 import app.handlers.*;
-import app.services.DeviceService;
+import app.services.*;
 import com.mongodb.reactivestreams.client.MongoClient;
 import com.mongodb.reactivestreams.client.MongoClients;
 import ratpack.server.RatpackServer;
@@ -17,6 +17,7 @@ public class Main {
             .registryOf(registry -> {
                 registry.add(MongoClient.class, mongoClient);
                 registry.add(MongoDatabase.class, mongoDatabase);
+                registry.add(VendorService.class, new VendorService(mongoDatabase));
                 registry.add(DeviceService.class, new DeviceService(mongoDatabase));
             })
             .handlers(chain -> chain
