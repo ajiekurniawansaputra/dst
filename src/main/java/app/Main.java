@@ -19,6 +19,7 @@ public class Main {
                 registry.add(MongoDatabase.class, mongoDatabase);
                 registry.add(VendorService.class, new VendorService(mongoDatabase));
                 registry.add(DeviceService.class, new DeviceService(mongoDatabase));
+                registry.add(UserService.class, new UserService(mongoDatabase));
             })
             .handlers(chain -> chain
                 .all(ctx -> {

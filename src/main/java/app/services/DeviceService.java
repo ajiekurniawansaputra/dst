@@ -4,15 +4,17 @@ import com.mongodb.reactivestreams.client.MongoDatabase;
 import com.mongodb.reactivestreams.client.MongoCollection;
 
 import static com.mongodb.client.model.Filters.eq;
+import static com.mongodb.client.model.Filters.in;
 import static com.mongodb.client.model.Projections.fields;
 import static com.mongodb.client.model.Projections.include;
 
 import org.bson.types.ObjectId;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+
+import java.util.*;
+import java.util.stream.Collectors;
+
 import org.bson.Document;
 
 public class DeviceService {
@@ -76,5 +78,55 @@ public class DeviceService {
                 .collectList()
                 .doOnSuccess(list -> System.out.printf("Successfully fetched : "+list.size()))
                 .doOnError(e -> System.out.printf("Error fetching data : "+e));
+    }
+
+    public Mono<Object> getAllUserDevices(String userId, String lang){
+        MongoCollection<Document> user = db.getCollection("User");
+        MongoCollection<Document> device = db.getCollection("Device");
+
+        return Mono.from(user.find(eq("_id", new ObjectId(userId))).first())
+                .flatMap(userDocument -> {
+                    List<Document> registeredDevices = userDocument.getList("registeredDevices", Document.class);
+                    if (registeredDevices == null || registeredDevices.isEmpty()) {
+                        return Mono.just(Collections.emptyList());
+                    }
+
+                    Map<ObjectId, Integer> deviceValues = registeredDevices.stream()
+                            .collect(Collectors.toMap(
+                                    rd -> rd.getObjectId("deviceId"),
+                                    rd -> rd.getInteger("value")
+                            ));
+
+                    List<ObjectId> deviceIds = new ArrayList<>(deviceValues.keySet());
+
+                    return Flux.from(device.find(in("_id", deviceIds)))
+                            .map(deviceDocument -> {
+                                ObjectId id = deviceDocument.getObjectId("_id");
+                                Integer value = deviceValues.get(id);
+
+                                Document conf = deviceDocument.get("configuration", Document.class);
+                                Map<String, Object> config = new HashMap<>();
+                                config.put("min", conf.get("min"));
+                                config.put("max", conf.get("max"));
+                                config.put("value", value);
+
+                                Document trans = deviceDocument.get("translations", Document.class);
+                                if (trans.containsKey(lang)){
+                                    Document translation = trans.get(lang, Document.class);
+                                    deviceDocument.put("deviceName",translation.getString("deviceName"));
+                                    deviceDocument.put("description",translation.getString("description"));
+                                }
+
+                                Map<String, Object> deviceInformation = new HashMap<>();
+                                deviceInformation.put("deviceId", id.toString());
+                                deviceInformation.put("brandName", deviceDocument.getString("brandName"));
+                                deviceInformation.put("deviceName", deviceDocument.getString("deviceName"));
+                                deviceInformation.put("description", deviceDocument.getString("description"));
+                                deviceInformation.put("configuration", config);
+
+                                return deviceInformation;
+                            })
+                            .collectList();
+                });
     }
 }

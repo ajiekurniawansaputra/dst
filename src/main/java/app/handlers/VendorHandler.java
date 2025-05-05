@@ -34,7 +34,7 @@ public class VendorHandler {
                             ctx.render(Jackson.json(stringMap));
                         }
 
-                        //Business Logic Service
+                        //Business Logic Service, Should be integrated into 1 Service
                         VendorService vendorService = ctx.get(VendorService.class);
                         DeviceService deviceService = ctx.get(DeviceService.class);
                         Promise<Map<String, Object>> devicePromise = Promise.async(downstream ->
