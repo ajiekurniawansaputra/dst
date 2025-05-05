@@ -129,4 +129,27 @@ public class DeviceService {
                             .collectList();
                 });
     }
+
+    public Mono<List<Map<String, Object>>> getAllDevicesAdmin() {
+        MongoCollection<Document> devices = db.getCollection("Device");
+        return Flux.from(devices.find())
+                .map(doc -> {
+                    System.out.println("Get String");
+                    Map<String, Object> device = new HashMap<>();
+                    device.put("deviceId", doc.getObjectId("_id").toString());
+                    device.put("vendorId", doc.getObjectId("vendorId").toString());
+                    device.put("brandName", doc.getString("brandName"));
+                    device.put("deviceName", doc.getString("deviceName"));
+                    device.put("description", doc.getString("description"));
+                    device.put("configuration", doc.get("configuration", Document.class));
+                    device.put("stats", doc.get("stats", Document.class));
+                    device.put("updatedAt", doc.getString("updatedAt"));
+                    device.put("createdAt", doc.getString("createdAt"));
+                    return device;
+                })
+                .collectList()
+                .doOnSuccess(list -> System.out.printf("Successfully fetched : "+list.size()))
+                .doOnError(e -> System.out.printf("Error fetching data : "+e));
+    }
+
 }

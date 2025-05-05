@@ -1,11 +1,13 @@
 package app.handlers;
 
+import app.services.DeviceService;
 import app.services.UserService;
 import ratpack.exec.Promise;
 import ratpack.handling.Chain;
 import ratpack.jackson.Jackson;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 public class AdminHandler {
@@ -15,7 +17,32 @@ public class AdminHandler {
                 ctx.byMethod(m -> m
                     // List all vendor devices with user count
                     .get(() -> {
-                        ctx.render("List all vendor devices with user count");
+                        //Business Logic Service
+                        DeviceService deviceService = ctx.get(DeviceService.class);
+                        Promise<List<Map<String, Object>>> devicePromise =
+                                Promise.async(downstream -> deviceService.getAllDevicesAdmin()
+                                        .subscribe(
+                                                downstream::success,
+                                                downstream::error
+                                        ));
+
+                        //Response Data
+                        devicePromise
+                                .map( result -> {
+                                    HashMap<String, Object> stringMap = new HashMap<>();
+                                    stringMap.put("status", "success");
+                                    stringMap.put("message", "List of All Device wih count");
+                                    stringMap.put("data", result);
+                                    return stringMap;
+                                })
+                                .onError(e -> {
+                                    HashMap<String, Object> stringMap = new HashMap<>();
+                                    stringMap.put("status", "error");
+                                    stringMap.put("message", "500 internal server error : "+e.getMessage());
+                                    ctx.getResponse().status(500);
+                                    ctx.render(Jackson.json(stringMap));
+                                })
+                                .then(result -> ctx.render(Jackson.json(result)));
                     })
                 )
             )
@@ -23,7 +50,32 @@ public class AdminHandler {
                 ctx.byMethod(m -> m
                     // List all users with number of registered devices
                     .get(() -> {
-                        ctx.render("List all users with number of registered devices");
+                        //Business Logic Service
+                        UserService userService = ctx.get(UserService.class);
+                        Promise<List<Map<String, Object>>> userPromise =
+                                Promise.async(downstream -> userService.getAllUsers()
+                                        .subscribe(
+                                                downstream::success,
+                                                downstream::error
+                                        ));
+
+                        //Response Data
+                        userPromise
+                                .map( result -> {
+                                    HashMap<String, Object> stringMap = new HashMap<>();
+                                    stringMap.put("status", "success");
+                                    stringMap.put("message", "List of All Device wih count");
+                                    stringMap.put("data", result);
+                                    return stringMap;
+                                })
+                                .onError(e -> {
+                                    HashMap<String, Object> stringMap = new HashMap<>();
+                                    stringMap.put("status", "error");
+                                    stringMap.put("message", "500 internal server error : "+e.getMessage());
+                                    ctx.getResponse().status(500);
+                                    ctx.render(Jackson.json(stringMap));
+                                })
+                                .then(result -> ctx.render(Jackson.json(result)));
                     })
                 )
             )

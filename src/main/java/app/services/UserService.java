@@ -57,4 +57,25 @@ public class UserService {
             .doOnSuccess(map -> System.out.print("Successfully fetched"+map))
             .doOnError(e -> System.out.printf("Error fetching data : "+e));
     }
+
+    public Mono<List<Map<String, Object>>> getAllUsers() {
+        MongoCollection<Document> users = db.getCollection("User");
+        return Flux.from(users.find())
+                .map(doc -> {
+                    Map<String, Object> user = new HashMap<>();
+                    user.put("userId", doc.getObjectId("_id").toString());
+                    user.put("name", doc.getString("name"));
+                    user.put("dob", doc.getString("dob"));
+                    user.put("address", doc.getString("address"));
+                    user.put("country", doc.getString("country"));
+                    user.put("registeredDevices", doc.getList("registeredDevices", Document.class));
+                    user.put("stats", doc.get("stats", Document.class));
+                    user.put("updatedAt", doc.getString("updatedAt"));
+                    user.put("createdAt", doc.getString("createdAt"));
+                    return user;
+                })
+                .collectList()
+                .doOnSuccess(list -> System.out.printf("Successfully fetched : "+list.size()))
+                .doOnError(e -> System.out.printf("Error fetching data : "+e));
+    }
 }
