@@ -2,6 +2,7 @@ package app.handlers;
 
 import app.services.*;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import ratpack.exec.Promise;
 import ratpack.handling.Chain;
 import ratpack.jackson.Jackson;
@@ -17,7 +18,50 @@ public class UserHandler {
                 ctx.byMethod(m -> m
                     // Register a new SmartThings user
                     .post(() -> {
-                        ctx.render("Register a new SmartThings user");
+                        ctx.getRequest().getBody().then(body -> {
+                            //Request Data
+                            System.out.println("Request Packing");
+                            Map<String,Object> bodymap = new ObjectMapper().readValue(body.getText(), HashMap.class);
+                            if (bodymap.get("name") == null || bodymap.get("dob") == null || bodymap.get("address") == null || bodymap.get("country") == null) {
+                                HashMap<String, Object> errorResponse = new HashMap<>();
+                                errorResponse.put("status", "error");
+                                errorResponse.put("message", "400 Bad Request : Name, DOB, Address, Country parameter is required");
+                                ctx.getResponse().status(400);
+                                ctx.render(Jackson.json(errorResponse));
+                                return;
+                            }
+
+                            //Business Logic
+                            UserService userService = ctx.get(UserService.class);
+
+                            Promise<Map<String, Object>> userPromise = Promise.async(downstream ->
+                                    userService.postOneUser(bodymap)
+                                            .subscribe(
+                                                    downstream::success,
+                                                    downstream::error
+                                            )
+                            );
+
+                            //Response Data
+                            System.out.println("Response Packing");
+                            userPromise
+                                    .map( result -> {
+                                        HashMap<String, Object> stringMap = new HashMap<>();
+                                        stringMap.put("status", "success");
+                                        stringMap.put("message", "User registered successfully");
+                                        stringMap.put("data", result);
+                                        return stringMap;
+                                    })
+                                    .onError(e -> {
+                                        HashMap<String, Object> stringMap = new HashMap<>();
+                                        stringMap.put("status", "error");
+                                        stringMap.put("message", "500 internal server error : "+e.getMessage());
+                                        ctx.getResponse().status(500);
+                                        ctx.render(Jackson.json(stringMap));
+                                    })
+                                    .then(result -> ctx.render(Jackson.json(result)));
+
+                        });
                     })
                 )
             )

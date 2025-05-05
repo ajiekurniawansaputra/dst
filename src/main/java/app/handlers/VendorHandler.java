@@ -2,8 +2,11 @@ package app.handlers;
 
 import app.services.DeviceService;
 import app.services.VendorService;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.mongodb.client.result.InsertOneResult;
 import ratpack.exec.Promise;
 import ratpack.handling.Chain;
+import ratpack.http.TypedData;
 import ratpack.jackson.Jackson;
 
 import java.util.HashMap;
@@ -90,8 +93,77 @@ public class VendorHandler {
                     })
                     // Create device by vendor
                     .post(() -> {
-                        String vendorId = ctx.getPathTokens().get("vendorId");
-                        ctx.render("Created device for vendor " + vendorId);
+                        String vendorId = ctx.getPathTokens().get("vendorId"); //24 character mongoDB id
+                        ctx.getRequest().getBody().then(body -> {
+                            //Request Data
+                            System.out.println("Request Packing");
+                            if (vendorId == null || vendorId.isEmpty()) {
+                                HashMap<String, Object> errorResponse = new HashMap<>();
+                                errorResponse.put("status", "error");
+                                errorResponse.put("message", "400 Bad Request : Vendor id is Required");
+                                ctx.getResponse().status(400);
+                                ctx.render(Jackson.json(errorResponse));
+                                return;
+                            }
+                            if (vendorId.length()!=24){
+                                HashMap<String, Object> stringMap = new HashMap<>();
+                                stringMap.put("status", "error");
+                                stringMap.put("message", "422 Unprocessable Entity : Exactly 24 Character Vendor's ID");
+                                ctx.getResponse().status(422);
+                                ctx.render(Jackson.json(stringMap));
+                            }
+                            Map<String,Object> bodymap = new ObjectMapper().readValue(body.getText(), HashMap.class);
+                            if (bodymap.get("brandName") == null || bodymap.get("deviceName") == null || bodymap.get("description") == null || bodymap.get("configuration") == null) {
+                                HashMap<String, Object> errorResponse = new HashMap<>();
+                                errorResponse.put("status", "error");
+                                errorResponse.put("message", "400 Bad Request : Brand Name, Device Name, Description parameter is required");
+                                ctx.getResponse().status(400);
+                                ctx.render(Jackson.json(errorResponse));
+                                return;
+                            }
+                            Map<String, Object> configurationMap = (Map<String, Object>) bodymap.get("configuration");
+                            if ( configurationMap.get("max") == null || configurationMap.get("min") == null ||  configurationMap.get("default") == null){
+                                HashMap<String, Object> errorResponse = new HashMap<>();
+                                errorResponse.put("status", "error");
+                                errorResponse.put("message", "400 Bad Request : Configuration parameter is required");
+                                ctx.getResponse().status(400);
+                                ctx.render(Jackson.json(errorResponse));
+                                return;
+                            }
+                            //Tambah validasi default jika perlu, untuk sekarang kita lewati
+
+                            //Business Logic
+                            System.out.println("Business Logic");
+                            DeviceService deviceService = ctx.get(DeviceService.class);
+
+                            Promise<Map<String, Object>> devicePromise = Promise.async(downstream ->
+                                    //add 1 querry to valdate vendor's id
+                                    deviceService.postOneDevice(bodymap, vendorId)
+                                            .subscribe(
+                                                    downstream::success,
+                                                    downstream::error
+                                            )
+                            );
+
+                            //Response Data
+                            System.out.println("Response Packing");
+                            devicePromise
+                                    .map( result -> {
+                                        HashMap<String, Object> stringMap = new HashMap<>();
+                                        stringMap.put("status", "success");
+                                        stringMap.put("message", "Device created successfully");
+                                        stringMap.put("data", result);
+                                        return stringMap;
+                                    })
+                                    .onError(e -> {
+                                        HashMap<String, Object> stringMap = new HashMap<>();
+                                        stringMap.put("status", "error");
+                                        stringMap.put("message", "500 internal server error : "+e.getMessage());
+                                        ctx.getResponse().status(500);
+                                        ctx.render(Jackson.json(stringMap));
+                                    })
+                                    .then(result -> ctx.render(Jackson.json(result)));
+                        });
                     })
                 )
             )

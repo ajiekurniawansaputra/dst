@@ -1,10 +1,12 @@
 package app.services;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.mongodb.client.result.InsertOneResult;
 import com.mongodb.reactivestreams.client.MongoDatabase;
 import com.mongodb.reactivestreams.client.MongoCollection;
 
-import static com.mongodb.client.model.Filters.eq;
-import static com.mongodb.client.model.Filters.in;
+import static com.mongodb.client.model.Filters.*;
 import static com.mongodb.client.model.Projections.fields;
 import static com.mongodb.client.model.Projections.include;
 
@@ -152,4 +154,37 @@ public class DeviceService {
                 .doOnError(e -> System.out.printf("Error fetching data : "+e));
     }
 
+    public Mono<Map<String, Object>> postOneDevice(Map<String,Object> bodymap, String vendorId) throws JsonProcessingException {
+        MongoCollection<Document> devices = db.getCollection("Device");
+        System.out.println("service post one");
+        Map<String, Object> configurationMap = (Map<String, Object>) bodymap.get("configuration");
+
+        System.out.println("service post two");
+        System.out.println(vendorId);
+        Document stats = new Document("registeredUserCount", 0);
+        Document configuration = new Document("min", configurationMap.get("min"))
+                .append("max", configurationMap.get("max"))
+                .append("default", configurationMap.get("default"));
+        Document document = new Document("vendorId", new ObjectId(vendorId))
+                .append("brandName", bodymap.get("brandName"))
+                .append("deviceName", bodymap.get("deviceName"))
+                .append("description", bodymap.get("description"))
+                .append("configuration", configuration)
+                .append("stats", stats)
+                .append("translations", empty())
+                .append("createdAt", "1990-05-10")
+                .append("updatedAt", "1990-05-10");
+        System.out.println("service post three");
+        return Mono.from(devices.insertOne(document))
+                .map( doc -> {
+                    Map<String, Object> device = new HashMap<>();
+                    device.put("deviceId", doc.getInsertedId().asObjectId().getValue().toHexString());
+                    device.put("brandName", bodymap.get("brandName"));
+                    device.put("deviceName", bodymap.get("deviceName"));
+                    device.put("description", bodymap.get("description"));
+                    return device;
+                })
+                .doOnSuccess(list -> System.out.print("Successfully posted"))
+                .doOnError(e -> System.out.printf("Error fetching data : "+e));
+    }
 }
