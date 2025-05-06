@@ -9,6 +9,7 @@ import ratpack.handling.Chain;
 import ratpack.jackson.Jackson;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 public class UserHandler {
@@ -438,7 +439,149 @@ public class UserHandler {
                 ctx.byMethod(m -> m
                     // Change the device value
                     .patch(() -> {
-                        ctx.render("Change the device value");
+                        //Request Data
+                        String userId = ctx.getPathTokens().get("userId");
+                        if (userId == null || userId.isEmpty()) {
+                            HashMap<String, Object> errorResponse = new HashMap<>();
+                            errorResponse.put("status", "error");
+                            errorResponse.put("message", "400 Bad Request : User id is Required");
+                            ctx.getResponse().status(400);
+                            ctx.render(Jackson.json(errorResponse));
+                            return;
+                        }
+                        if (userId.length()!=24){
+                            HashMap<String, Object> stringMap = new HashMap<>();
+                            stringMap.put("status", "error");
+                            stringMap.put("message", "422 Unprocessable Entity : Exactly 24 Character User's ID");
+                            ctx.getResponse().status(422);
+                            ctx.render(Jackson.json(stringMap));
+                        }
+                        String deviceId = ctx.getPathTokens().get("deviceId");
+                        if (deviceId == null || deviceId.isEmpty()) {
+                            HashMap<String, Object> errorResponse = new HashMap<>();
+                            errorResponse.put("status", "error");
+                            errorResponse.put("message", "400 Bad Request : Device id is Required");
+                            ctx.getResponse().status(400);
+                            ctx.render(Jackson.json(errorResponse));
+                            return;
+                        }
+                        if (deviceId.length()!=24){
+                            HashMap<String, Object> stringMap = new HashMap<>();
+                            stringMap.put("status", "error");
+                            stringMap.put("message", "422 Unprocessable Entity : Exactly 24 Character Device's ID");
+                            ctx.getResponse().status(422);
+                            ctx.render(Jackson.json(stringMap));
+                        }
+                        String changeValueStr = ctx.getRequest().getQueryParams().get("changeValue");
+                        if (changeValueStr == null || changeValueStr.isEmpty()) {
+                            HashMap<String, Object> errorResponse = new HashMap<>();
+                            errorResponse.put("status", "error");
+                            errorResponse.put("message", "400 Bad Request : Value is Required");
+                            ctx.getResponse().status(400);
+                            ctx.render(Jackson.json(errorResponse));
+                            return;
+                        }
+                        if (changeValueStr.matches("-?\\d+")){
+                            System.out.println("Valid Int");
+                        }
+                        else {
+                            HashMap<String, Object> stringMap = new HashMap<>();
+                            stringMap.put("status", "error");
+                            stringMap.put("message", "422 Unprocessable Entity : Exactly 24 Character Device's ID");
+                            ctx.getResponse().status(422);
+                            ctx.render(Jackson.json(stringMap));
+                        }
+
+                        //Business Logic
+                        UserService userService = ctx.get(UserService.class);
+                        DeviceService deviceService = ctx.get(DeviceService.class);
+                        Promise<Map<String, Object>> userdevicePromise = Promise.async(downstream ->
+                            //give information
+                            userService.getActiveUserById(userId)
+                                .subscribe(
+                                    userData -> {
+                                        if (userData.isEmpty()) {
+                                            HashMap<String, Object> errorMap = new HashMap<>();
+                                            errorMap.put("status", "error");
+                                            errorMap.put("message", "User not found");
+                                            ctx.getResponse().status(404);
+                                            ctx.render(Jackson.json(errorMap));
+                                        } else {
+                                            deviceService.getOneDevice(deviceId)
+                                                .subscribe(
+                                                        devices -> {
+                                                            if(devices.isEmpty()){
+                                                                HashMap<String, Object> errorMap = new HashMap<>();
+                                                                errorMap.put("status", "error");
+                                                                errorMap.put("message", "Device not found");
+                                                                ctx.getResponse().status(404);
+                                                                ctx.render(Jackson.json(errorMap));
+                                                            }
+                                                            else {
+                                                                Map<String, Object> Configuration = (Map<String, Object>) devices.get("configuration");
+                                                                int minConfig = (int) Configuration.get("min");
+                                                                int maxConfig = (int) Configuration.get("max");
+                                                                if(Integer.parseInt(changeValueStr)>maxConfig || Integer.parseInt(changeValueStr) < minConfig){
+                                                                    HashMap<String, Object> errorMap = new HashMap<>();
+                                                                    errorMap.put("status", "error");
+                                                                    errorMap.put("message", "Value outside range");
+                                                                    ctx.getResponse().status(404);
+                                                                    ctx.render(Jackson.json(errorMap));
+                                                                } else {
+                                                                    userService.userDeviceExists(userId, deviceId)
+                                                                            .subscribe(
+                                                                                    isExist -> {
+                                                                                        if (isExist){
+                                                                                            userService.changeDeviceValue(userId, deviceId, Integer.parseInt(changeValueStr))
+                                                                                                    .subscribe(
+                                                                                                            user -> {
+                                                                                                                System.out.println("final subscribe");
+                                                                                                                HashMap<String, Object> resultMap = new HashMap<>();
+                                                                                                                resultMap.put("userId", user.get("userId"));
+                                                                                                                resultMap.put("deviceId", user.get("deviceId"));
+                                                                                                                downstream.success(resultMap);
+                                                                                                            },
+                                                                                                            downstream::error
+                                                                                                    );
+                                                                                        } else {
+                                                                                            HashMap<String, Object> errorMap = new HashMap<>();
+                                                                                            errorMap.put("status", "error");
+                                                                                            errorMap.put("message", "Device is not registered yet");
+                                                                                            ctx.getResponse().status(404);
+                                                                                            ctx.render(Jackson.json(errorMap));
+                                                                                        }
+                                                                                    },
+                                                                                    downstream::error
+                                                                            );
+                                                                }
+                                                            }
+                                                        },
+                                                        downstream::error
+                                                );
+                                        }
+                                    },
+                                    downstream::error
+                                )
+                        );
+
+                        //Response Data
+                        userdevicePromise
+                                .map( result -> {
+                                    HashMap<String, Object> stringMap = new HashMap<>();
+                                    stringMap.put("status", "success");
+                                    stringMap.put("message", "Device value updated successfully");
+                                    stringMap.put("data", result);
+                                    return stringMap;
+                                })
+                                .onError(e -> {
+                                    HashMap<String, Object> stringMap = new HashMap<>();
+                                    stringMap.put("status", "error");
+                                    stringMap.put("message", "500 internal server error : "+e.getMessage());
+                                    ctx.getResponse().status(500);
+                                    ctx.render(Jackson.json(stringMap));
+                                })
+                                .then(result -> ctx.render(Jackson.json(result)));
+
                     })
                 )
             );

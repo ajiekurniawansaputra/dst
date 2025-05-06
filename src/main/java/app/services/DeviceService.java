@@ -190,7 +190,7 @@ public class DeviceService {
     public Mono<Map<String, Object>> getOneDevice(String deviceId){
         MongoCollection<Document> device = db.getCollection("Device");
         ObjectId objectId = new ObjectId(deviceId);
-        return Mono.from(device.find(eq("_id", objectId)).projection(fields(include("stats","deviceName", "configuration"))).first())
+        return Mono.from(device.find(eq("_id", objectId)).projection(fields(include("stats", "deviceName", "configuration"))).first())
                 .map(doc -> {
                     System.out.println("packing Device's data");
                     Map<String, Object> deviceMap = new HashMap<>();

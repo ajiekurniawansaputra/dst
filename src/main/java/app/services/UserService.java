@@ -1,6 +1,8 @@
 package app.services;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.mongodb.client.model.Filters;
+import com.mongodb.client.model.UpdateOptions;
 import com.mongodb.client.model.Updates;
 import com.mongodb.reactivestreams.client.MongoDatabase;
 import com.mongodb.reactivestreams.client.MongoCollection;
@@ -10,16 +12,15 @@ import static com.mongodb.client.model.Projections.fields;
 import static com.mongodb.client.model.Projections.include;
 import static com.mongodb.client.model.Updates.set;
 
+import org.bson.conversions.Bson;
 import org.bson.types.ObjectId;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
+
 import org.bson.Document;
 
 public class UserService {
@@ -214,4 +215,31 @@ public class UserService {
                 .map(doc -> true)
                 .defaultIfEmpty(false);
     }
+
+    public Mono<Map<String, Object>> changeDeviceValue(String userId, String deviceId, int value){
+        MongoCollection<Document> users = db.getCollection("User");
+        ObjectId userIdObj = new ObjectId(userId);
+        ObjectId targetDeviceIdObj = new ObjectId(deviceId);
+
+        Document filter = new Document("_id", userIdObj);
+        Document update = new Document("$set", new Document("registeredDevices.$[device].value", value));
+        List<Bson> arrayFilters = Arrays.asList(
+                Filters.eq("device.deviceId", targetDeviceIdObj)
+        );
+        UpdateOptions options = new UpdateOptions().arrayFilters(arrayFilters);
+
+        return Mono.from(users.updateOne(filter, update, options))
+                .map( doc -> {
+                    System.out.println("updatedddd");
+                    System.out.println(doc);
+                    Map<String, Object> device_data = new HashMap<>();
+                    device_data.put("userId", userId);
+                    device_data.put("deviceId", deviceId);
+                    device_data.put("value", value);
+                    return device_data;
+                })
+                .doOnSuccess(list -> System.out.print("Successfully posted"))
+                .doOnError(e -> System.out.printf("Error fetching data : "+e));
+    }
+
 }
