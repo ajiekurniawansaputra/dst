@@ -2,6 +2,8 @@ package app.services;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.mongodb.client.model.Filters;
+import com.mongodb.client.model.UpdateOptions;
 import com.mongodb.client.result.InsertOneResult;
 import com.mongodb.reactivestreams.client.MongoDatabase;
 import com.mongodb.reactivestreams.client.MongoCollection;
@@ -10,6 +12,7 @@ import static com.mongodb.client.model.Filters.*;
 import static com.mongodb.client.model.Projections.fields;
 import static com.mongodb.client.model.Projections.include;
 
+import org.bson.conversions.Bson;
 import org.bson.types.ObjectId;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -202,6 +205,48 @@ public class DeviceService {
                 })
                 .defaultIfEmpty(new HashMap<>())
                 .doOnSuccess(map -> System.out.print("Successfully fetched"+map))
+                .doOnError(e -> System.out.printf("Error fetching data : "+e));
+    }
+
+    public Mono<Map<String, Object>> updateDevice(Map<String,Object> bodymap, String deviceId){
+        MongoCollection<Document> devices = db.getCollection("Device");
+        Map<String, Object> configurationMap = (Map<String, Object>) bodymap.get("configuration");
+        ObjectId deviceIddObj = new ObjectId(deviceId);
+
+        Document filter = new Document("_id", deviceIddObj);
+        Document setFields = new Document();
+
+        // Top-level optional fields
+        if (bodymap.containsKey("brandName")) {
+            setFields.append("brandName", bodymap.get("brandName"));
+        }
+        if (bodymap.containsKey("deviceName")) {
+            setFields.append("deviceName", bodymap.get("deviceName"));
+        }
+        if (bodymap.containsKey("description")) {
+            setFields.append("description", bodymap.get("description"));
+        }
+        if (configurationMap != null) {
+            if (configurationMap.containsKey("min")) {
+                setFields.append("configuration.min", configurationMap.get("min"));
+            }
+            if (configurationMap.containsKey("max")) {
+                setFields.append("configuration.max", configurationMap.get("max"));
+            }
+            if (configurationMap.containsKey("default")) {
+                setFields.append("configuration.default", configurationMap.get("default"));
+            }
+        }
+        setFields.append("updatedAt", new Date());
+
+        Document update = new Document("$set", setFields);
+        return Mono.from(devices.updateOne(filter, update))
+                .map( doc -> {
+                    Map<String, Object> deviceData = new HashMap<>();
+                    deviceData.put("deviceId", deviceId);
+                    return deviceData;
+                })
+                .doOnSuccess(list -> System.out.print("Successfully posted"))
                 .doOnError(e -> System.out.printf("Error fetching data : "+e));
     }
 }

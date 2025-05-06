@@ -173,7 +173,85 @@ public class VendorHandler {
                     .patch(() -> {
                         String vendorId = ctx.getPathTokens().get("vendorId");
                         String deviceId = ctx.getPathTokens().get("deviceId");
-                        ctx.render("Update device");
+                        ctx.getRequest().getBody().then(body -> {
+                            //Request Data
+                            System.out.println("Request Packing");
+                            if (vendorId == null || vendorId.isEmpty()) {
+                                HashMap<String, Object> errorResponse = new HashMap<>();
+                                errorResponse.put("status", "error");
+                                errorResponse.put("message", "400 Bad Request : Vendor id is Required");
+                                ctx.getResponse().status(400);
+                                ctx.render(Jackson.json(errorResponse));
+                                return;
+                            }
+                            if (vendorId.length()!=24){
+                                HashMap<String, Object> stringMap = new HashMap<>();
+                                stringMap.put("status", "error");
+                                stringMap.put("message", "422 Unprocessable Entity : Exactly 24 Character Vendor's ID");
+                                ctx.getResponse().status(422);
+                                ctx.render(Jackson.json(stringMap));
+                            }
+                            Map<String,Object> bodymap = new ObjectMapper().readValue(body.getText(), HashMap.class);
+
+                            //Business Logic
+                            DeviceService deviceService = ctx.get(DeviceService.class);
+                            VendorService vendorService = ctx.get(VendorService.class);
+                            Promise<Map<String, Object>> devicePromise = Promise.async(
+                                downstream ->
+                                vendorService.getVendorById(vendorId)
+                                    .subscribe(
+                                        vendorData -> {
+                                            if (vendorData.isEmpty()){
+                                                HashMap<String, Object> errorResponse = new HashMap<>();
+                                                errorResponse.put("status", "error");
+                                                errorResponse.put("message", "400 Bad Request : Vendor not Found");
+                                                ctx.getResponse().status(400);
+                                                ctx.render(Jackson.json(errorResponse));
+                                            }
+                                            else {
+                                                deviceService.getOneDevice(deviceId)
+                                                    .subscribe(
+                                                        deviceData ->{
+                                                            if(deviceData.isEmpty()){
+                                                                HashMap<String, Object> errorResponse = new HashMap<>();
+                                                                errorResponse.put("status", "error");
+                                                                errorResponse.put("message", "400 Bad Request : User not Found");
+                                                                ctx.getResponse().status(400);
+                                                                ctx.render(Jackson.json(errorResponse));
+                                                            }
+                                                            else {
+                                                                deviceService.updateDevice(bodymap, deviceId)
+                                                                        .subscribe(
+                                                                                downstream::success,
+                                                                                downstream::error
+                                                                        );
+                                                            }
+                                                        },
+                                                        downstream::error
+                                                    );
+                                            }
+                                        },
+                                        downstream::error
+                                    )
+                            );
+
+                            devicePromise
+                                    .map( result -> {
+                                        HashMap<String, Object> stringMap = new HashMap<>();
+                                        stringMap.put("status", "success");
+                                        stringMap.put("message", "Device information updated successfully");
+                                        stringMap.put("data", result);
+                                        return stringMap;
+                                    })
+                                    .onError(e -> {
+                                        HashMap<String, Object> stringMap = new HashMap<>();
+                                        stringMap.put("status", "error");
+                                        stringMap.put("message", "500 internal server error : "+e.getMessage());
+                                        ctx.getResponse().status(500);
+                                        ctx.render(Jackson.json(stringMap));
+                                    })
+                                    .then(result -> ctx.render(Jackson.json(result)));
+                        });
                     })
                     // Delete device if not registered
                     .delete(() -> {
