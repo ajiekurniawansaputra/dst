@@ -85,7 +85,6 @@ public class DeviceService {
     public Mono<Object> getAllUserDevices(String userId, String lang){
         MongoCollection<Document> user = db.getCollection("User");
         MongoCollection<Document> device = db.getCollection("Device");
-
         return Mono.from(user.find(eq("_id", new ObjectId(userId))).first())
                 .flatMap(userDocument -> {
                     List<Document> registeredDevices = userDocument.getList("registeredDevices", Document.class);
@@ -185,6 +184,24 @@ public class DeviceService {
                     return device;
                 })
                 .doOnSuccess(list -> System.out.print("Successfully posted"))
+                .doOnError(e -> System.out.printf("Error fetching data : "+e));
+    }
+
+    public Mono<Map<String, Object>> getOneDevice(String deviceId){
+        MongoCollection<Document> device = db.getCollection("Device");
+        ObjectId objectId = new ObjectId(deviceId);
+        return Mono.from(device.find(eq("_id", objectId)).projection(fields(include("stats","deviceName", "configuration"))).first())
+                .map(doc -> {
+                    System.out.println("packing Device's data");
+                    Map<String, Object> deviceMap = new HashMap<>();
+                    deviceMap.put("deviceName", doc.getString("deviceName"));
+                    deviceMap.put("stats", doc.get("stats", Document.class));
+                    deviceMap.put("configuration", doc.get("configuration", Document.class));
+                    System.out.println("doc");System.out.println(doc);
+                    return deviceMap;
+                })
+                .defaultIfEmpty(new HashMap<>())
+                .doOnSuccess(map -> System.out.print("Successfully fetched"+map))
                 .doOnError(e -> System.out.printf("Error fetching data : "+e));
     }
 }

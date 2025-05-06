@@ -1,17 +1,22 @@
 package app.services;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.mongodb.client.model.Updates;
 import com.mongodb.reactivestreams.client.MongoDatabase;
 import com.mongodb.reactivestreams.client.MongoCollection;
 
-import static com.mongodb.client.model.Filters.empty;
-import static com.mongodb.client.model.Filters.eq;
+import static com.mongodb.client.model.Filters.*;
 import static com.mongodb.client.model.Projections.fields;
 import static com.mongodb.client.model.Projections.include;
+import static com.mongodb.client.model.Updates.set;
 
 import org.bson.types.ObjectId;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -27,11 +32,12 @@ public class UserService {
     public Mono<Map<String, Object>> getActiveUserById(String userId) {
         MongoCollection<Document> user = db.getCollection("User");
         ObjectId objectId = new ObjectId(userId);
-        return Mono.from(user.find(eq("_id", objectId)).projection(fields(include("name"))).first())
+        return Mono.from(user.find(eq("_id", objectId)).projection(fields(include("name","stats"))).first())
                 .map(doc -> {
                     System.out.println("packing User's data");
                     Map<String, Object> userMap = new HashMap<>();
                     userMap.put("name", doc.getString("name"));
+                    userMap.put("stats", doc.get("stats", Document.class));
                     return userMap;
                 })
                 .defaultIfEmpty(new HashMap<>())
@@ -90,7 +96,7 @@ public class UserService {
                 .append("dob", bodymap.get("dob"))
                 .append("address", bodymap.get("address"))
                 .append("country", bodymap.get("country"))
-                .append("registeredDevices", empty())
+                .append("registeredDevices", new ArrayList<>())
                 .append("stats", stats)
                 .append("createdAt", "1990-05-10")
                 .append("updatedAt", "1990-05-10");
@@ -109,4 +115,103 @@ public class UserService {
                 .doOnError(e -> System.out.printf("Error fetching data : "+e));
     }
 
+    public Mono<Map<String, Object>> updateUsersRegisteredDevice(String userId, String deviceId, String value, String registeredDeviceCount){
+        System.out.println("updatedddd1");
+        System.out.println(Integer.parseInt(registeredDeviceCount)+1);
+        Document newDevice = new Document("deviceId", new ObjectId(deviceId))
+                .append("value", Integer.parseInt(value))
+                .append("lastUsed", LocalDate.now().toString())
+                .append("registeredAt", LocalDate.now().toString());
+        MongoCollection<Document> users = db.getCollection("User");
+        MongoCollection<Document> devicedb = db.getCollection("Device");
+        return Mono.from(
+                users.updateOne(
+                    eq("_id", new ObjectId(userId)),
+                    Updates.combine(
+                        Updates.inc("stats.registeredDeviceCount", 1),
+                        Updates.push("registeredDevices", newDevice),
+                        set("updatedAt", LocalDateTime.now().toString())
+                    )
+                ))
+                .flatMap(updateResult -> {
+                    System.out.println("User updated");
+                    System.out.println(updateResult);
+                    System.out.println("were going to update the device stats");
+                    System.out.println(deviceId);
+                    return Mono.from(
+                            devicedb.updateOne(
+                                    eq("_id", new ObjectId(deviceId)),
+                                    Updates.combine(
+                                        Updates.inc("stats.registeredUserCount", 1),
+                                        set("updatedAt", LocalDateTime.now().toString())
+                                    )
+                            ));
+                })
+                .map( doc -> {
+                    System.out.println("updatedddd");
+                    System.out.println(doc);
+                    Map<String, Object> device_data = new HashMap<>();
+                    device_data.put("userId", userId);
+                    device_data.put("deviceId", deviceId);
+                    return device_data;
+                })
+                .doOnSuccess(list -> System.out.print("Successfully posted"))
+                .doOnError(e -> System.out.printf("Error fetching data : "+e));
+    }
+
+    public Mono<Map<String, Object>> updateDeleteUsersRegisteredDevice(String userId, String deviceId, String value, String registeredDeviceCount){
+        System.out.println("updatedddd1");
+        System.out.println(Integer.parseInt(registeredDeviceCount)-1);
+        MongoCollection<Document> users = db.getCollection("User");
+        MongoCollection<Document> device = db.getCollection("Device");
+        return Mono.from(
+                        users.updateOne(
+                                eq("_id", new ObjectId(userId)),
+                                Updates.combine(
+                                        Updates.inc("stats.registeredDeviceCount", -1),
+                                        //user mungkin seharusnya punya id sendiri
+                                        Updates.pull("registeredDevices", new Document("deviceId", new ObjectId(deviceId))),
+                                        set("updatedAt", LocalDateTime.now().toString())
+                                )
+                        ))
+                .flatMap(
+                    updateResult -> {
+                        System.out.println("User updated");
+                        System.out.println(updateResult);
+
+                        return Mono.from(
+                            device.updateOne(
+                                eq("_id", new ObjectId(deviceId)),
+                                Updates.combine(
+                                    Updates.inc("stats.registeredUserCount", -1),
+                                    set("updatedAt", LocalDateTime.now().toString())
+                                )
+                            ));
+                    }
+                )
+                .map( doc -> {
+                    System.out.println("updatedddd");
+                    System.out.println(doc);
+                    Map<String, Object> device_data = new HashMap<>();
+                    device_data.put("userId", userId);
+                    device_data.put("deviceId", deviceId);
+                    return device_data;
+                })
+                .doOnSuccess(list -> System.out.print("Successfully posted"))
+                .doOnError(e -> System.out.printf("Error fetching data : "+e));
+    }
+
+    public Mono<Boolean> userDeviceExists(String userId, String deviceId) {
+        MongoCollection<Document> user = db.getCollection("User");
+        ObjectId objectId = new ObjectId(userId);
+        ObjectId userDeviceobjectId = new ObjectId(deviceId);
+        return Mono.from(user.find(
+                        and(
+                                eq("_id", objectId),
+                                eq("registeredDevices.deviceId", userDeviceobjectId)
+                        )
+                ).first())
+                .map(doc -> true)
+                .defaultIfEmpty(false);
+    }
 }
