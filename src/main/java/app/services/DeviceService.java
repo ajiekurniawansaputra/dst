@@ -208,6 +208,29 @@ public class DeviceService {
                 .doOnError(e -> System.out.printf("Error fetching data : "+e));
     }
 
+    public Mono<Map<String, Object>> deleteOneDevice(String deviceId){
+        MongoCollection<Document> device = db.getCollection("Device");
+        ObjectId deviceIddObj = new ObjectId(deviceId);
+
+        Document filter = new Document("_id", deviceIddObj)
+                .append("stats.registeredUserCount", 0);
+
+        return Mono.from(device.deleteOne(filter))
+                .flatMap(result -> {
+                    if (result.getDeletedCount() > 0) {
+                        Map<String, Object> deviceMap = new HashMap<>();
+                        deviceMap.put("deviceId", deviceId);
+                        return Mono.just(deviceMap);
+                    } else {
+                        return Mono.error(new IllegalStateException(
+                                "Device could not be deleted. It may have registered users."
+                        ));
+                    }
+                })
+                .doOnSuccess(map -> System.out.print("Successfully fetched"+map))
+                .doOnError(e -> System.out.printf("Error fetching data : "+e));
+    }
+
     public Mono<Map<String, Object>> updateDevice(Map<String,Object> bodymap, String deviceId){
         MongoCollection<Document> devices = db.getCollection("Device");
         Map<String, Object> configurationMap = (Map<String, Object>) bodymap.get("configuration");
