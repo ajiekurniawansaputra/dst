@@ -626,27 +626,27 @@ Content-Type: application/json
 ```json
 {
   "vendorId": {
-    "$oid": "ObjectId"  // Reference to the vendor document
+    "$oid": "ObjectId"
   },
-  "brandName": "string",  // The brand of the device
-  "deviceName": "string",  // Name of the device
-  "description": "string",  // Description of the device
+  "brandName": "string",
+  "deviceName": "string",
+  "description": "string",
   "configuration": {
-    "min": "number",  // Minimum brightness setting
-    "max": "number",  // Maximum brightness setting
-    "default": "number"  // Default brightness setting
+    "min": "number",
+    "max": "number",
+    "default": "number"
   },
   "stats": {
-    "registeredUserCount": "number"  // The number of users who have registered for this device
+    "registeredUserCount": "number"
   },
   "translations": {
     // Optional: Translations of the device details in multiple languages
   },
   "createdAt": {
-    "$date": "ISODate"  // The creation date of the device record
+    "$date": "ISODate"  
   },
   "updatedAt": {
-    "$date": "ISODate"  // The last updated date of the device record
+    "$date": "ISODate"  
   }
 }
 ```
@@ -657,34 +657,34 @@ Content-Type: application/json
 ```json
 {
   "_id": {
-    "$oid": "ObjectId"  // Unique identifier for the user
+    "$oid": "ObjectId"  
   },
-  "name": "string",  // Full name of the user
-  "dob": "string",  // Date of birth (format: MM-DD-YYYY)
-  "address": "string",  // Address of the user
-  "country": "string",  // Country code (e.g., "id" for Indonesia)
+  "name": "string",  
+  "dob": "string",  
+  "address": "string",  
+  "country": "string", 
   "registeredDevices": [
     {
       "deviceId": {
-        "$oid": "ObjectId"  // Reference to a registered device
+        "$oid": "ObjectId"  
       },
-      "value": "number",  // Device-specific value (e.g., brightness setting)
+      "value": "number",  
       "lastUsed": {
-        "$date": "ISODate"  // Timestamp when the device was last used
+        "$date": "ISODate"  
       },
       "registeredAt": {
-        "$date": "ISODate"  // Timestamp when the device was registered to the user
+        "$date": "ISODate"  
       }
     }
   ],
   "stats": {
-    "registeredDeviceCount": "number"  // The number of devices registered by the user
+    "registeredDeviceCount": "number"  
   },
   "createdAt": {
-    "$date": "ISODate"  // The timestamp when the user document was created
+    "$date": "ISODate"  
   },
   "updatedAt": {
-    "$date": "ISODate"  // The timestamp when the user document was last updated
+    "$date": "ISODate"  
   }
 }
 ```
@@ -695,9 +695,9 @@ Content-Type: application/json
 ```json
 {
   "_id": {
-    "$oid": "ObjectId"  // Unique identifier for the vendor
+    "$oid": "ObjectId"  
   },
-  "name": "string"  // Name of the vendor
+  "name": "string"  
 }
 ```
 
