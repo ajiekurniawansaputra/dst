@@ -17,7 +17,6 @@ import org.bson.types.ObjectId;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.*;
 
@@ -49,7 +48,7 @@ public class UserService {
     public Mono<Map<String, Object>> getUsersById(String userId) {
         MongoCollection<Document> user = db.getCollection("User");
         ObjectId objectId = new ObjectId(userId);
-        return Mono.from(user.find(eq("_id", objectId)).projection(fields(include("_id", "name","dob","address","country","stats","registeredDevices"))).first())
+        return Mono.from(user.find(eq("_id", objectId)).projection(fields(include("_id", "name","dob","address","country","stats","registeredDevices", "createdAt", "updatedAt"))).first())
             .map(doc -> {
                 System.out.println("packing User's data");
                 Map<String, Object> userMap = new HashMap<>();
@@ -60,6 +59,9 @@ public class UserService {
                 userMap.put("country", doc.getString("country"));
                 userMap.put("stats", doc.get("stats", Document.class));
                 userMap.put("registeredDevices", doc.getList("registeredDevices", Document.class));
+                userMap.put("updatedAt", doc.getDate("updatedAt"));
+                userMap.put("createdAt", doc.getDate("createdAt"));
+                //Should be added to serialise device id inside the list
                 return userMap;
             })
             .defaultIfEmpty(new HashMap<>())
@@ -77,10 +79,9 @@ public class UserService {
                     user.put("dob", doc.getString("dob"));
                     user.put("address", doc.getString("address"));
                     user.put("country", doc.getString("country"));
-                    user.put("registeredDevices", doc.getList("registeredDevices", Document.class));
                     user.put("stats", doc.get("stats", Document.class));
-                    user.put("updatedAt", doc.getString("updatedAt"));
-                    user.put("createdAt", doc.getString("createdAt"));
+                    user.put("updatedAt", doc.getDate("updatedAt"));
+                    user.put("createdAt", doc.getDate("createdAt"));
                     return user;
                 })
                 .collectList()
@@ -99,8 +100,8 @@ public class UserService {
                 .append("country", bodymap.get("country"))
                 .append("registeredDevices", new ArrayList<>())
                 .append("stats", stats)
-                .append("createdAt", "1990-05-10")
-                .append("updatedAt", "1990-05-10");
+                .append("createdAt", LocalDateTime.now())
+                .append("updatedAt", LocalDateTime.now());
         System.out.println("service post three");
         return Mono.from(user.insertOne(document))
                 .map( doc -> {
@@ -121,8 +122,8 @@ public class UserService {
         System.out.println(Integer.parseInt(registeredDeviceCount)+1);
         Document newDevice = new Document("deviceId", new ObjectId(deviceId))
                 .append("value", Integer.parseInt(value))
-                .append("lastUsed", LocalDate.now().toString())
-                .append("registeredAt", LocalDate.now().toString());
+                .append("lastUsed", LocalDateTime.now())
+                .append("registeredAt", LocalDateTime.now());
         MongoCollection<Document> users = db.getCollection("User");
         MongoCollection<Document> devicedb = db.getCollection("Device");
         return Mono.from(
@@ -131,7 +132,7 @@ public class UserService {
                     Updates.combine(
                         Updates.inc("stats.registeredDeviceCount", 1),
                         Updates.push("registeredDevices", newDevice),
-                        set("updatedAt", LocalDateTime.now().toString())
+                        set("updatedAt", LocalDateTime.now())
                     )
                 ))
                 .flatMap(updateResult -> {
@@ -144,7 +145,7 @@ public class UserService {
                                     eq("_id", new ObjectId(deviceId)),
                                     Updates.combine(
                                         Updates.inc("stats.registeredUserCount", 1),
-                                        set("updatedAt", LocalDateTime.now().toString())
+                                        set("updatedAt", LocalDateTime.now())
                                     )
                             ));
                 })
@@ -172,7 +173,7 @@ public class UserService {
                                         Updates.inc("stats.registeredDeviceCount", -1),
                                         //user mungkin seharusnya punya id sendiri
                                         Updates.pull("registeredDevices", new Document("deviceId", new ObjectId(deviceId))),
-                                        set("updatedAt", LocalDateTime.now().toString())
+                                        set("updatedAt", LocalDateTime.now())
                                 )
                         ))
                 .flatMap(
@@ -185,7 +186,7 @@ public class UserService {
                                 eq("_id", new ObjectId(deviceId)),
                                 Updates.combine(
                                     Updates.inc("stats.registeredUserCount", -1),
-                                    set("updatedAt", LocalDateTime.now().toString())
+                                    set("updatedAt", LocalDateTime.now())
                                 )
                             ));
                     }
@@ -222,7 +223,8 @@ public class UserService {
         ObjectId targetDeviceIdObj = new ObjectId(deviceId);
 
         Document filter = new Document("_id", userIdObj);
-        Document update = new Document("$set", new Document("registeredDevices.$[device].value", value));
+        Document update = new Document("$set", new Document("registeredDevices.$[device].value", value))
+                .append("$set", new Document("registeredDevices.$[device].lastUsed", LocalDateTime.now()));
         List<Bson> arrayFilters = Arrays.asList(
                 Filters.eq("device.deviceId", targetDeviceIdObj)
         );

@@ -20,7 +20,7 @@ public class AdminHandler {
                         //Business Logic Service
                         DeviceService deviceService = ctx.get(DeviceService.class);
                         Promise<List<Map<String, Object>>> devicePromise =
-                                Promise.async(downstream -> deviceService.getAllDevicesAdmin()
+                                Promise.async(downstream -> deviceService.getAllAdminDevices()
                                         .subscribe(
                                                 downstream::success,
                                                 downstream::error
@@ -64,7 +64,7 @@ public class AdminHandler {
                                 .map( result -> {
                                     HashMap<String, Object> stringMap = new HashMap<>();
                                     stringMap.put("status", "success");
-                                    stringMap.put("message", "List of All Device wih count");
+                                    stringMap.put("message", "List of All Users wih count");
                                     stringMap.put("data", result);
                                     return stringMap;
                                 })

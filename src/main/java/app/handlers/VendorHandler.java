@@ -2,6 +2,7 @@ package app.handlers;
 
 import app.services.DeviceService;
 import app.services.VendorService;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mongodb.client.result.InsertOneResult;
 import ratpack.exec.Promise;
@@ -134,15 +135,37 @@ public class VendorHandler {
 
                             //Business Logic
                             System.out.println("Business Logic");
+                            VendorService vendorService = ctx.get(VendorService.class);
                             DeviceService deviceService = ctx.get(DeviceService.class);
 
                             Promise<Map<String, Object>> devicePromise = Promise.async(downstream ->
-                                    //add 1 querry to valdate vendor's id
-                                    deviceService.postOneDevice(bodymap, vendorId)
-                                            .subscribe(
-                                                    downstream::success,
-                                                    downstream::error
-                                            )
+                                    vendorService.getVendorById(vendorId)
+                                        .subscribe(
+                                                vendor ->{
+                                                    if (vendor.isEmpty()) {
+                                                        // Vendor not found
+                                                        System.out.println("render error");
+                                                        HashMap<String, Object> errorMap = new HashMap<>();
+                                                        errorMap.put("status", "error");
+                                                        errorMap.put("message", "Vendor not found");
+                                                        ctx.getResponse().status(404);
+                                                        ctx.render(Jackson.json(errorMap));
+                                                    }
+                                                    else {
+                                                        System.out.println("Getting Devicee data");
+                                                        try {
+                                                            deviceService.postOneDevice(bodymap, vendorId)
+                                                                    .subscribe(
+                                                                            downstream::success,
+                                                                            downstream::error
+                                                                    );
+                                                        } catch (JsonProcessingException e) {
+                                                            throw new RuntimeException(e);
+                                                        }
+                                                    }
+                                                },
+                                                downstream::error
+                                        )
                             );
 
                             //Response Data
@@ -230,12 +253,12 @@ public class VendorHandler {
                                                             if(deviceData.isEmpty()){
                                                                 HashMap<String, Object> errorResponse = new HashMap<>();
                                                                 errorResponse.put("status", "error");
-                                                                errorResponse.put("message", "400 Bad Request : User not Found");
+                                                                errorResponse.put("message", "400 Bad Request : Device not Found");
                                                                 ctx.getResponse().status(400);
                                                                 ctx.render(Jackson.json(errorResponse));
                                                             }
                                                             else {
-                                                                deviceService.updateDevice(bodymap, deviceId)
+                                                                deviceService.updateDevice(bodymap, deviceId, vendorId)
                                                                         .subscribe(
                                                                                 downstream::success,
                                                                                 downstream::error
@@ -322,7 +345,7 @@ public class VendorHandler {
                                             ctx.render(Jackson.json(errorResponse));
                                         }
                                         else {
-                                            deviceService.deleteOneDevice(deviceId)
+                                            deviceService.deleteOneDevice(deviceId, vendorId)
                                                 .subscribe(
                                                     downstream::success,
                                                     downstream::error

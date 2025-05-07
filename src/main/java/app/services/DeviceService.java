@@ -17,6 +17,7 @@ import org.bson.types.ObjectId;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
+import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -76,8 +77,8 @@ public class DeviceService {
                     device.put("description", doc.getString("description"));
                     device.put("configuration", doc.get("configuration", Document.class));
                     device.put("stats", doc.get("stats", Document.class));
-                    device.put("createdAt", doc.getString("createdAt"));
-                    device.put("updatedAt", doc.getString("updatedAt"));
+                    device.put("createdAt", doc.getDate("createdAt"));
+                    device.put("updatedAt", doc.getDate("updatedAt"));
                     return device;
                 })
                 .collectList()
@@ -134,7 +135,7 @@ public class DeviceService {
                 });
     }
 
-    public Mono<List<Map<String, Object>>> getAllDevicesAdmin() {
+    public Mono<List<Map<String, Object>>> getAllAdminDevices() {
         MongoCollection<Document> devices = db.getCollection("Device");
         return Flux.from(devices.find())
                 .map(doc -> {
@@ -147,8 +148,8 @@ public class DeviceService {
                     device.put("description", doc.getString("description"));
                     device.put("configuration", doc.get("configuration", Document.class));
                     device.put("stats", doc.get("stats", Document.class));
-                    device.put("updatedAt", doc.getString("updatedAt"));
-                    device.put("createdAt", doc.getString("createdAt"));
+                    device.put("updatedAt", doc.getDate("updatedAt"));
+                    device.put("createdAt", doc.getDate("createdAt"));
                     return device;
                 })
                 .collectList()
@@ -174,8 +175,8 @@ public class DeviceService {
                 .append("configuration", configuration)
                 .append("stats", stats)
                 .append("translations", empty())
-                .append("createdAt", "1990-05-10")
-                .append("updatedAt", "1990-05-10");
+                .append("createdAt", LocalDateTime.now())
+                .append("updatedAt", LocalDateTime.now());
         System.out.println("service post three");
         return Mono.from(devices.insertOne(document))
                 .map( doc -> {
@@ -208,12 +209,14 @@ public class DeviceService {
                 .doOnError(e -> System.out.printf("Error fetching data : "+e));
     }
 
-    public Mono<Map<String, Object>> deleteOneDevice(String deviceId){
+    public Mono<Map<String, Object>> deleteOneDevice(String deviceId, String vendorId){
         MongoCollection<Document> device = db.getCollection("Device");
         ObjectId deviceIddObj = new ObjectId(deviceId);
+        ObjectId vendorIddObj = new ObjectId(vendorId);
 
         Document filter = new Document("_id", deviceIddObj)
-                .append("stats.registeredUserCount", 0);
+                .append("stats.registeredUserCount", 0)
+                .append("vendorId", vendorIddObj);
 
         return Mono.from(device.deleteOne(filter))
                 .flatMap(result -> {
@@ -223,7 +226,7 @@ public class DeviceService {
                         return Mono.just(deviceMap);
                     } else {
                         return Mono.error(new IllegalStateException(
-                                "Device could not be deleted. It may have registered users."
+                                "Device could not be deleted. It may have registered users or owned by other vendor."
                         ));
                     }
                 })
@@ -231,12 +234,13 @@ public class DeviceService {
                 .doOnError(e -> System.out.printf("Error fetching data : "+e));
     }
 
-    public Mono<Map<String, Object>> updateDevice(Map<String,Object> bodymap, String deviceId){
+    public Mono<Map<String, Object>> updateDevice(Map<String,Object> bodymap, String deviceId, String vendorId){
         MongoCollection<Document> devices = db.getCollection("Device");
         Map<String, Object> configurationMap = (Map<String, Object>) bodymap.get("configuration");
         ObjectId deviceIddObj = new ObjectId(deviceId);
 
-        Document filter = new Document("_id", deviceIddObj);
+        Document filter = new Document("_id", deviceIddObj)
+                .append("vendorId",new ObjectId(vendorId));
         Document setFields = new Document();
 
         // Top-level optional fields
@@ -260,14 +264,20 @@ public class DeviceService {
                 setFields.append("configuration.default", configurationMap.get("default"));
             }
         }
-        setFields.append("updatedAt", new Date());
+        setFields.append("updatedAt", LocalDateTime.now());
 
         Document update = new Document("$set", setFields);
         return Mono.from(devices.updateOne(filter, update))
-                .map( doc -> {
-                    Map<String, Object> deviceData = new HashMap<>();
-                    deviceData.put("deviceId", deviceId);
-                    return deviceData;
+                .flatMap( doc -> {
+                    if (doc.getMatchedCount() > 0) {
+                        Map<String, Object> deviceData = new HashMap<>();
+                        deviceData.put("deviceId", deviceId);
+                        return Mono.just(deviceData);
+                    } else {
+                        return Mono.error(new IllegalStateException(
+                                "You are not authorized update this device, only device's vendor can update device's data."
+                        ));
+                    }
                 })
                 .doOnSuccess(list -> System.out.print("Successfully posted"))
                 .doOnError(e -> System.out.printf("Error fetching data : "+e));
