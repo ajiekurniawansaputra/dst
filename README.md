@@ -57,13 +57,14 @@ Demo API untuk Manage Vendor, User, dan Device dalam aplikasi IoT.
 
 **Base Path**: `/api/translation`
 
-| No | Method | Endpoint | Description | Requirement |
-| --- | --- | --- | --- | --- |
-| 4.1 | `POST` | `/api/translation` | Translate text to one country | 12 |
+| No  | Method | Endpoint               | Description                   | Requirement |
+|-----| --- |------------------------|-------------------------------| --- |
+| 4.1 | `POST` | `/api/translation`     | Translate text to one country | 12 |
+| 4.2 | `POST` | `/api/translation/all` | Translate text to all country | 12 |
 
 # Request Response
 
-# Code
+## Code
 
 `200 OK`
 
@@ -79,7 +80,7 @@ Demo API untuk Manage Vendor, User, dan Device dalam aplikasi IoT.
 
 `500 Internal Server Error`
 
-# Response
+## Response
 
 ### **1. Vendor APIs (for device management)**
 
