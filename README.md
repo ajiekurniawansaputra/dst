@@ -37,7 +37,7 @@ Demo API untuk Manage Vendor, User, dan Device dalam aplikasi IoT.
 | No | Method | Endpoint | Description | Requirement |
 | --- | --- | --- | --- | --- |
 | 2.1 | `POST` | `/api/users/register` | Register a new SmartThings user | 4 |
-| 2.2 | `GET`  | `/api/devices/available?lang={language}` | Get all available devices translated to user’s language | 5 |
+| 2.2 | `GET`  | `/api/users/available?lang={language}` | Get all available devices translated to user’s language | 5 |
 | 2.3 | `POST` | `/api/users/{userId}/devices/{deviceId}` | Register a device to a user | 6 |
 | 2.4 | `DELETE` | `/api/users/{userId}/devices/{deviceId}` | Unregister a device from a user | 6 |
 | 2.5 | `GET` | `/api/users/{userId}/devices?lang={language}` | Get all registered devices (translated) | 7 |
